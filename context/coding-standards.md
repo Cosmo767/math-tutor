@@ -16,27 +16,34 @@ math-tutor/
 ├── context/                    # project docs (this folder)
 ├── question_bank/
 │   ├── db/
-│   │   └── schema.sql          # canonical schema definition
+│   │   └── 001_initial_schema.sql   # canonical schema definition
 │   ├── scripts/
-│   │   ├── setup_db.py         # initialize database
-│   │   ├── generate_questions.py   # Claude API generation
-│   │   ├── qc_questions.py     # automated QC pipeline
-│   │   └── seed_anchors.py     # import anchor questions from CSV
+│   │   ├── setup_db.py              # initialize database
+│   │   ├── generate_anchors.py      # generate HS geometry anchors via Claude API
+│   │   ├── seed_anchors.py          # import anchor CSV into SQLite
+│   │   ├── generate_questions.py    # ⬜ bulk question generation (not built yet)
+│   │   └── qc_questions.py          # ⬜ automated QC pipeline (not built yet)
 │   ├── data/
-│   │   └── anchors.csv         # manually entered anchor questions
-│   └── questions.db            # SQLite database (gitignored)
-├── backend/                    # Phase 3
+│   │   ├── anchors.csv              # middle school anchor questions (manually written)
+│   │   └── anchors_hs_geometry.csv  # HS anchors (output of generate_anchors.py)
+│   └── questions.db                 # SQLite database (gitignored)
+├── backend/
 │   ├── app.py
-│   ├── routes/
-│   └── models/
-├── frontend/                   # Phase 2 (stack TBD)
-├── ml/                         # Phase 4
+│   └── routes/
+│       ├── __init__.py
+│       └── recommendations.py
+├── frontend/
+│   └── test_stream.html        # SSE test page (dev only)
+├── ml/
 │   ├── simulate_students.py
 │   ├── train_model.py
-│   └── models/
+│   ├── recommender.py
+│   ├── data/                   # populated by simulate_students.py
+│   └── models/                 # populated by train_model.py
 ├── tests/
 ├── .env                        # gitignored
 ├── .env.example                # committed, no real values
+├── CLAUDE.md                   # auto-loaded by Claude Code CLI
 ├── requirements.txt
 └── README.md
 ```
@@ -58,7 +65,7 @@ math-tutor/
 - Always set `max_tokens` explicitly
 - Always use `try/except` around API calls
 - Log failures with enough context to debug (question id, prompt summary)
-- Model: `claude-sonnet-4-20250514`
+- Model: `claude-sonnet-4-6`
 
 ## Question Generation
 - Never hardcode question content — always generated from templates

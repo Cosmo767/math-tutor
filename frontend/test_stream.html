@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Recommender Test</title>
+  <style>
+    body { font-family: monospace; max-width: 900px; margin: 40px auto; padding: 0 20px; background: #0f0f0f; color: #e0e0e0; }
+    h2 { color: #aaa; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }
+    .panel { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; min-height: 160px; }
+    .panel.model  { border-color: #2d5a2d; }
+    .panel.claude { border-color: #2d3d5a; }
+    .label { font-size: 11px; color: #666; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    .label.model  { color: #4a9a4a; }
+    .label.claude { color: #4a7aaa; }
+    .recommendation { font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 8px; }
+    .confidence { font-size: 12px; color: #666; margin-bottom: 12px; }
+    .explanation { font-size: 14px; color: #ccc; line-height: 1.6; }
+    .ranking { margin-top: 12px; }
+    .ranking-row { display: flex; justify-content: space-between; font-size: 12px; color: #666; padding: 2px 0; }
+    .ranking-row.top { color: #aaa; }
+    .controls { margin-bottom: 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button { background: #2a2a2a; color: #ddd; border: 1px solid #444; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: monospace; }
+    button:hover { background: #333; }
+    button.primary { background: #1a3a1a; border-color: #4a9a4a; color: #4a9a4a; }
+    .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; }
+    input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; }
+    .status { font-size: 12px; color: #555; margin-top: 8px; }
+    .cursor { display: inline-block; width: 8px; height: 14px; background: #4a7aaa; animation: blink 1s step-end infinite; vertical-align: middle; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .scores-display { font-size: 12px; color: #555; margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+<h1 style="color:#666; font-size:16px;">📐 Recommender Test — Dual Output</h1>
+
+<div class="controls">
+  <button class="primary" onclick="runStream()">▶ Get Recommendation</button>
+  <button onclick="randomizeScores()">⟳ Randomize Scores</button>
+  <label class="toggle">
+    <input type="checkbox" id="claudeToggle" checked onchange="toggleClaude(this.checked)">
+    Show Claude recommendation
+  </label>
+</div>
+
+<div class="panels">
+  <div class="panel model">
+    <div class="label model">📊 Model (scikit-learn)</div>
+    <div id="modelContent">
+      <div class="explanation" style="color:#444">Waiting...</div>
+    </div>
+  </div>
+
+  <div class="panel claude">
+    <div class="label claude">🤖 Claude</div>
+    <div id="claudeContent">
+      <div class="explanation" style="color:#444">Waiting...</div>
+    </div>
+  </div>
+</div>
+
+<div class="scores-display" id="scoresDisplay"></div>
+<div class="status" id="status"></div>
+
+<script>
+  // Sample scores — edit these or click Randomize
+  let scores = {
+    triangle_congruence:   0.80,
+    similarity:            0.75,
+    pythagorean_theorem:   0.85,
+    special_right_triangles: 0.70,
+    soh_cah_toa:           0.65,
+    unit_circle:           0.40,
+    circles:               0.35,
+    coordinate_geometry:   0.60,
+    area_and_volume:       0.72,
+    angle_relationships:   0.78,
+  };
+
+  let claudeEnabled = true;
+  let activeSource = null;
+
+  function setStatus(msg) {
+    document.getElementById('status').textContent = msg;
+  }
+
+  function displayScores() {
+    const lines = Object.entries(scores)
+      .map(([t, s]) => `${t}: ${Math.round(s * 100)}%`)
+      .join('  |  ');
+    document.getElementById('scoresDisplay').textContent = 'Scores: ' + lines;
+  }
+
+  function randomizeScores() {
+    Object.keys(scores).forEach(t => {
+      scores[t] = Math.round(Math.random() * 100) / 100;
+    });
+    displayScores();
+    setStatus('Scores randomized. Click Get Recommendation.');
+  }
+
+  function toggleClaude(enabled) {
+    claudeEnabled = enabled;
+    // In production this would call POST /api/recommend/toggle-claude
+    // For the test page, we just update the local flag
+    setStatus(`Claude recommendations ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  function resetPanels() {
+    document.getElementById('modelContent').innerHTML =
+      '<div class="explanation" style="color:#555">Loading...</div>';
+    document.getElementById('claudeContent').innerHTML =
+      claudeEnabled
+        ? '<div class="explanation" style="color:#555">Waiting for model first...</div>'
+        : '<div class="explanation" style="color:#555">Claude disabled</div>';
+  }
+
+  function renderModelResult(data) {
+    const top3 = (data.full_ranking || []).slice(0, 4);
+    const rows = top3.map((r, i) => `
+      <div class="ranking-row ${i === 0 ? 'top' : ''}">
+        <span>${r.topic}</span>
+        <span>${Math.round(r.confidence * 100)}%</span>
+      </div>`).join('');
+
+    document.getElementById('modelContent').innerHTML = `
+      <div class="recommendation">${data.recommendation}</div>
+      <div class="confidence">confidence: ${Math.round((data.confidence || 0) * 100)}%</div>
+      <div class="ranking">${rows}</div>
+      <div class="confidence" style="margin-top:8px">trained on ${data.n_training_rows || '?'} sessions</div>
+    `;
+  }
+
+  function runStream() {
+    // Close any existing SSE connection
+    if (activeSource) {
+      activeSource.close();
+      activeSource = null;
+    }
+
+    resetPanels();
+    displayScores();
+    setStatus('Connecting...');
+
+    const params = new URLSearchParams({
+      scores: JSON.stringify(scores),
+      student_id: 'test_student'
+    });
+
+    /*
+     * EventSource opens a persistent GET connection to the SSE endpoint.
+     * The browser automatically reconnects if the connection drops.
+     * Each "data: {...}\n\n" the server sends fires the onmessage event.
+     */
+    const evtSource = new EventSource(`/api/recommend/stream?${params}`);
+    activeSource = evtSource;
+
+    let claudeText = '';
+    let claudeStarted = false;
+
+    evtSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'model') {
+        renderModelResult(data);
+        setStatus('Model result received. Waiting for Claude...');
+      }
+
+      else if (data.type === 'model_unavailable') {
+        document.getElementById('modelContent').innerHTML =
+          `<div class="explanation" style="color:#664444">${data.message}</div>`;
+        setStatus('Model not available.');
+      }
+
+      else if (data.type === 'claude_chunk') {
+        // First chunk — initialize the panel
+        if (!claudeStarted) {
+          claudeStarted = true;
+          document.getElementById('claudeContent').innerHTML =
+            '<div class="explanation" id="claudeText"></div>';
+        }
+        claudeText += data.chunk;
+        // Update text and show blinking cursor while streaming
+        document.getElementById('claudeText').innerHTML =
+          claudeText + '<span class="cursor"></span>';
+        setStatus('Claude is responding...');
+      }
+
+      else if (data.type === 'claude_done') {
+        // Remove cursor, finalize text
+        document.getElementById('claudeContent').innerHTML =
+          `<div class="explanation">${data.full_text}</div>`;
+        setStatus('Done.');
+        evtSource.close();
+        activeSource = null;
+      }
+
+      else if (data.type === 'claude_disabled') {
+        setStatus('Done (Claude disabled).');
+        evtSource.close();
+        activeSource = null;
+      }
+
+      else if (data.type === 'error') {
+        const panel = data.source === 'model' ? 'modelContent' : 'claudeContent';
+        document.getElementById(panel).innerHTML =
+          `<div class="explanation" style="color:#aa4444">Error: ${data.message}</div>`;
+        setStatus(`Error from ${data.source}.`);
+      }
+    };
+
+    evtSource.onerror = () => {
+      setStatus('Connection error. Is the Flask server running?');
+      evtSource.close();
+      activeSource = null;
+    };
+  }
+
+  // Init
+  displayScores();
+</script>
+</body>
+</html>

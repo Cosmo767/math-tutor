@@ -51,7 +51,7 @@ California math standards (CA CCSS) are the reference framework for all content.
 | Layer | Technology | Status |
 |---|---|---|
 | **Question bank scripts** | Python 3 | ✅ decided |
-| **Question generation** | Anthropic API (`claude-sonnet-4-20250514`) | ✅ decided |
+| **Question generation** | Anthropic API (`claude-sonnet-4-6`) | ✅ decided |
 | **Database** | SQLite (dev) → PostgreSQL (prod) | ✅ decided |
 | **Backend / API** | Python + Flask | ✅ decided |
 | **ML model** | scikit-learn | ✅ decided |
@@ -64,27 +64,30 @@ California math standards (CA CCSS) are the reference framework for all content.
 ## 4. Project Phases
 
 ### Phase 1 — Question Bank ← YOU ARE HERE
-- Design and finalize question schema
-- Manually enter anchor questions (geometry first)
-- Build Claude API generation pipeline
-- Build automated QC pipeline
-- Store all questions in SQLite
+- ✅ Design and finalize question schema
+- ✅ `generate_anchors.py` — generates HS geometry anchors via Claude API (12 domains, 9 questions each)
+- ✅ `seed_anchors.py` — imports CSV anchors into SQLite
+- ⬜ Build automated QC pipeline (`qc_questions.py`)
+- ⬜ Build bulk question generation pipeline (`generate_questions.py`)
 
 ### Phase 2 — Quiz Website (Frontend)
 - Serve questions to students
 - Handle multiple choice and numeric input formats
 - Display score and basic feedback by topic
-- No backend required yet — can run off static files
+- Stack TBD — see [Section 10](#10-frontend-decision--pending)
 
-### Phase 3 — Backend API
-- Flask API serves questions and receives quiz submissions
-- Saves student results to database
-- Student performance tracked by topic and standard
+### Phase 3 — Backend API ✅ scaffolded
+- ✅ Flask app with blueprint routing (`backend/app.py`)
+- ✅ `/api/recommend` endpoints (non-streaming + SSE streaming)
+- ✅ Student Claude preference toggle (stored in DB)
+- ⬜ Question serving routes (`GET /api/questions`)
+- ⬜ Result submission routes (`POST /api/results`)
 
-### Phase 4 — ML Model
-- Generate simulated student data (via Claude API)
-- Train scikit-learn classifier to predict struggling topics
-- Expose predictions via Flask endpoint
+### Phase 4 — ML Model ✅ scaffolded
+- ✅ `simulate_students.py` — generates synthetic training data via Claude
+- ✅ `train_model.py` — trains SGDClassifier with `partial_fit()` support
+- ✅ `recommender.py` — dual recommender (model + Claude streaming in parallel)
+- ⬜ Real student data accumulation (triggers at 10 real sessions)
 
 ### Phase 5 — Adaptive Quiz Engine
 - Use difficulty tags already on questions to route adaptively
@@ -113,36 +116,71 @@ is_anchor           INTEGER              -- 1 if manually entered anchor questio
 created_at          TEXT
 ```
 
-### student_results table (Phase 3)
+### student_results table
 ```
-id                  INTEGER PRIMARY KEY
-student_id          TEXT
-question_id         TEXT
+id                  INTEGER PRIMARY KEY AUTOINCREMENT
+student_id          TEXT NOT NULL
+session_id          TEXT NOT NULL          -- groups all questions from one quiz sitting
+question_id         TEXT NOT NULL
+topic               TEXT NOT NULL          -- denormalized from questions for faster queries
 answer_given        TEXT
-is_correct          INTEGER
+is_correct          INTEGER NOT NULL DEFAULT 0
 time_spent_seconds  INTEGER
+is_simulated        INTEGER NOT NULL DEFAULT 0   -- 0 = real, 1 = Claude-generated training data
 created_at          TEXT
 ```
 
-### students table (Phase 3)
+### students table
 ```
-id                  TEXT PRIMARY KEY
-name                TEXT
-grade_level         INTEGER
-created_at          TEXT
+id                              TEXT PRIMARY KEY
+name                            TEXT
+grade_level                     INTEGER
+show_claude_recommendation      INTEGER NOT NULL DEFAULT 1   -- persists Claude toggle preference
+created_at                      TEXT
+```
+
+### student_topic_history table
+```
+student_id    TEXT NOT NULL
+topic         TEXT NOT NULL
+sessions      INTEGER          -- total quiz sessions on this topic
+avg_score     REAL             -- rolling average (0.0–1.0)
+last_score    REAL
+trend         REAL             -- positive = improving, negative = declining
+updated_at    TEXT
+PRIMARY KEY (student_id, topic)
+```
+
+### qc_log table
+```
+id            INTEGER PRIMARY KEY AUTOINCREMENT
+question_id   TEXT
+verdict       TEXT             -- approved | rejected | revised
+issues        TEXT
+checked_at    TEXT
 ```
 
 ---
 
 ## 6. Question Bank Structure
 
-### Topics (geometry first, expanding later)
-| Topic | Subtopics | Grade Band | CA Standards |
+### Topics — HS Geometry (current focus)
+| Topic | Key Subtopics | Grade Level | CA Standard |
 |---|---|---|---|
-| triangles | angle_sum, triangle_types, exterior_angles | middle | 8.G.A.5 |
-| pythagorean_theorem | find_hypotenuse, find_leg, real_world | middle/high | 8.G.B.7, 8.G.B.8 |
-| soh_cah_toa | find_side, find_angle, word_problems | high | HSG.SRT.C.6 |
-| unit_circle | radian_degree, trig_values, quadrants | high | HSF.TF.A.2 |
+| triangle_congruence | SSS/SAS/ASA/AAS, CPCTC | 9 | HSG.CO.B.8 |
+| similarity | AA/SAS/SSS, scale factor, proportions | 9 | HSG.SRT.A.3 |
+| transformations | reflections, rotations, translations, dilations | 9 | HSG.CO.A.2 |
+| pythagorean_theorem | find hypotenuse/leg, converse, real world | 9 | HSG.SRT.B.4 |
+| special_right_triangles | 30-60-90, 45-45-90 | 9 | HSG.SRT.C.6 |
+| soh_cah_toa | find side/angle, inverse trig, word problems | 9 | HSG.SRT.C.6 |
+| unit_circle | radian/degree, exact trig values, reference angles | 10 | HSF.TF.A.2 |
+| circles | arc length, sector area, inscribed/central angles | 10 | HSG.C.A.2 |
+| coordinate_geometry | distance, midpoint, slope, parallel/perpendicular | 10 | HSG.GPE.B.4 |
+| area_and_volume | polygon/circle area, surface area, volume | 10 | HSG.GMD.A.3 |
+| angle_relationships | parallel lines/transversals, polygon angles | 9 | HSG.CO.C.9 |
+| proofs_and_reasoning | two-column proofs, paragraph proofs, properties | 10 | HSG.CO.C.9 |
+
+Note: The ML model tracks 10 topics (excludes `transformations` and `proofs_and_reasoning`).
 
 ### Difficulty definitions
 These definitions are used in every generation prompt — do not change without updating prompts.
@@ -151,37 +189,33 @@ These definitions are used in every generation prompt — do not change without 
 - **medium** — two steps, or one concept applied in a slightly unfamiliar way
 - **hard** — multi-step, connects two concepts, or requires non-obvious setup
 
-### Question bank targets
-| Topic | Easy | Medium | Hard | Total |
-|---|---|---|---|---|
-| triangles | 10 | 10 | 10 | 30 |
-| pythagorean_theorem | 10 | 10 | 10 | 30 |
-| soh_cah_toa | 10 | 10 | 10 | 30 |
-| unit_circle | 10 | 10 | 10 | 30 |
-| **Total** | | | | **120** |
+### Question bank — anchor set (generated by `generate_anchors.py`)
+9 questions per topic (3 per difficulty) × 12 topics = **108 anchor questions**
+These seed the database. Bulk generation expands to ~30 per topic.
 
 ---
 
 ## 7. ML Model Plan
 
-### Training data strategy
-1. Build question bank (Phase 1)
-2. Write student simulation script using Claude API
-3. Generate ~300–500 synthetic student result rows
-4. Add noise to simulate realistic inconsistency
-5. Train initial decision tree / logistic regression in scikit-learn
-6. Validate against rule-based baseline
-7. Retrain as real student data accumulates
+### Model: SGDClassifier (scikit-learn)
+Chosen because `partial_fit()` allows incremental updates as real students take quizzes — no full retraining needed. Also trains a DecisionTree in parallel for inspection only.
 
-### Feature vector (per student, per session)
+### Training data strategy
+1. ✅ `simulate_students.py` — generates synthetic data via Claude (10 archetypes × N students)
+2. ✅ `train_model.py` — trains model, saves `recommender.pkl` + `model_meta.pkl`
+3. Model activates after **10 real student sessions**; below that threshold, Claude handles all recommendations
+4. `update_model()` in `recommender.py` calls `partial_fit()` after each confirmed session
+
+### Feature vector (per student)
 ```
-[triangles_score, pythagorean_score, soh_cah_toa_score, unit_circle_score,
- avg_time_per_question, total_attempts]
+[triangle_congruence, similarity, pythagorean_theorem, special_right_triangles,
+ soh_cah_toa, unit_circle, circles, coordinate_geometry, area_and_volume, angle_relationships]
 ```
+Each value is a score 0.0–1.0 for that topic.
 
 ### Prediction target
 ```
-struggling_topic: "triangles" | "pythagorean_theorem" | "soh_cah_toa" | "unit_circle"
+weak_topic: one of the 10 topics above
 ```
 
 ---
@@ -196,14 +230,24 @@ struggling_topic: "triangles" | "pythagorean_theorem" | "soh_cah_toa" | "unit_ci
 
 ---
 
-## 9. Key Routes (Phase 3+)
+## 9. Key Routes
 
+### Built (`backend/routes/recommendations.py`)
+| Route | Description |
+|---|---|
+| `GET /health` | Server health check |
+| `GET /api/status` | Active method (claude vs model), session counts |
+| `POST /api/recommend` | Single recommendation, JSON response |
+| `GET /api/recommend/stream` | Dual SSE stream — model result first, then Claude streams |
+| `POST /api/recommend/toggle-claude` | Save student's Claude preference to DB |
+| `POST /api/update` | Incremental model update after a confirmed session |
+
+### Planned (Phase 3 completion)
 | Route | Description |
 |---|---|
 | `GET /api/questions` | Fetch questions (filterable by topic, grade, difficulty) |
-| `POST /api/results` | Submit a quiz result |
-| `GET /api/students/:id/performance` | Get performance summary by topic |
-| `GET /api/recommend/:student_id` | Get ML topic recommendation |
+| `POST /api/results` | Submit quiz results |
+| `GET /api/students/:id/performance` | Performance summary by topic |
 
 ---
 
