@@ -8,8 +8,10 @@ Run locally:
     python backend/app.py
 
 Server starts at http://localhost:8000
+Frontend served at http://localhost:8000/
 
 Endpoints registered:
+    GET  /
     GET  /health
     GET  /api/status
     POST /api/recommend
@@ -27,7 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 from routes.recommendations import recommendations_bp
@@ -36,16 +38,19 @@ from routes.quiz import quiz_bp
 
 load_dotenv()
 
-app = Flask(__name__)
+FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 
-# CORS allows the frontend (running on a different port during dev)
-# to make requests to this backend without being blocked by the browser.
-# In production you'd restrict this to your actual domain.
+app = Flask(__name__)
 CORS(app)
 
 app.register_blueprint(recommendations_bp, url_prefix="/api")
 app.register_blueprint(students_bp,        url_prefix="/api")
 app.register_blueprint(quiz_bp,            url_prefix="/api")
+
+
+@app.route("/")
+def index():
+    return send_from_directory(FRONTEND_DIR, "index.html")
 
 
 @app.route("/health")

@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>math-tutor</title>
+  <style>
+    :root {
+      --bg:      #0f0f0f;
+      --surface: #1a1a1a;
+      --border:  #2a2a2a;
+      --text:    #e0e0e0;
+      --muted:   #666;
+      --green:   #4a9a4a;
+      --yellow:  #9a8a2a;
+      --red:     #9a3a3a;
+      --blue:    #4a7aaa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 20px 48px;
+    }
+
+    .view { display: none; max-width: 580px; margin: 0 auto; }
+    .view.active { display: block; }
+
+    /* ── Shared ── */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+    }
+    .btn-primary  { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .btn-ghost    { background: transparent; color: var(--muted); border-color: var(--border); }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn:hover:not(:disabled) { opacity: 0.88; }
+
+    input[type="text"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 13px 16px;
+      color: var(--text);
+      font-size: 16px;
+      font-family: inherit;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--blue); }
+
+    .error  { color: #aa5555; font-size: 13px; margin-top: 10px; text-align: center; }
+    .muted  { color: var(--muted); }
+    .spacer { height: 12px; }
+
+    /* ── Login ── */
+    #view-login {
+      padding-top: 80px;
+    }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 40px 36px;
+      text-align: center;
+    }
+
+    .login-card h1 { font-size: 26px; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .login-card p  { color: var(--muted); font-size: 14px; margin-bottom: 32px; line-height: 1.5; }
+    .login-card input { margin-bottom: 10px; text-align: center; }
+
+    /* ── Dashboard ── */
+    .page-header { margin-bottom: 24px; }
+    .page-header h2 { font-size: 22px; letter-spacing: -0.3px; }
+    .page-header p  { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+    .topic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .topic-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .topic-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .topic-pct {
+      font-size: 30px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+
+    .score-bar  { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 8px; }
+    .score-fill { height: 100%; border-radius: 2px; }
+    .good   { background: var(--green); color: var(--green); }
+    .medium { background: var(--yellow); color: var(--yellow); }
+    .poor   { background: var(--red);  color: var(--red); }
+
+    .topic-sessions { font-size: 12px; color: var(--muted); }
+
+    /* ── Quiz ── */
+    .quiz-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .quiz-topbar span { font-size: 13px; color: var(--muted); }
+
+    .progress-bar  { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 28px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.3s; }
+
+    .question-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 14px;
+    }
+
+    .q-topic {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--blue);
+      margin-bottom: 14px;
+    }
+
+    .q-text { font-size: 17px; line-height: 1.55; }
+
+    .options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+
+    .opt {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 13px 16px;
+      text-align: left;
+      color: var(--text);
+      font-size: 15px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: border-color 0.12s;
+    }
+    .opt:hover:not(:disabled) { border-color: var(--blue); }
+    .opt.correct { border-color: var(--green); background: #1c2a1c; color: #6aaa6a; }
+    .opt.wrong   { border-color: var(--red);   background: #2a1c1c; color: #aa6a6a; }
+
+    .numeric-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .numeric-row input { flex: 1; }
+    .numeric-row .btn  { width: auto; padding: 13px 20px; }
+
+    .feedback { font-size: 14px; margin-top: 6px; min-height: 20px; }
+    .feedback.ok  { color: var(--green); }
+    .feedback.err { color: var(--red); }
+
+    /* ── Results ── */
+    .results-hero { text-align: center; margin-bottom: 36px; padding-top: 16px; }
+    .results-hero .icon  { font-size: 36px; margin-bottom: 8px; }
+    .results-hero .score { font-size: 60px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
+    .results-hero .label { color: var(--muted); font-size: 14px; }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-row:last-child { border-bottom: none; }
+    .result-name  { font-size: 15px; }
+    .result-sub   { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .result-score { font-size: 16px; font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ───────────────────────────────────────────── -->
+<div id="view-login" class="view active">
+  <div class="login-card">
+    <h1>📐 math-tutor</h1>
+    <p>Adaptive geometry practice for California high school students</p>
+    <input type="text" id="nameInput" placeholder="Enter your name" autocomplete="off" autocapitalize="words">
+    <div class="spacer"></div>
+    <button class="btn btn-primary" id="loginBtn" onclick="login()">Get Started</button>
+    <div id="loginError" class="error" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ── Dashboard ───────────────────────────────────────── -->
+<div id="view-dashboard" class="view">
+  <div class="page-header">
+    <h2 id="welcomeText">Welcome</h2>
+    <p id="dashSub">Your topic scores</p>
+  </div>
+  <div id="topicGrid" class="topic-grid"></div>
+  <button class="btn btn-primary" onclick="startQuiz()">Start Quiz</button>
+</div>
+
+<!-- ── Quiz ────────────────────────────────────────────── -->
+<div id="view-quiz" class="view">
+  <div class="quiz-topbar">
+    <span id="quizProgress">Question 1 of —</span>
+    <button class="btn btn-ghost" style="width:auto;padding:6px 14px;font-size:13px" onclick="exitQuiz()">Exit</button>
+  </div>
+  <div class="progress-bar"><div id="progressFill" class="progress-fill" style="width:0"></div></div>
+  <div id="questionCard" class="question-card"></div>
+  <div id="answerArea"></div>
+  <div id="nextWrap" style="display:none; margin-top:4px">
+    <button class="btn btn-primary" onclick="nextQuestion()">Next</button>
+  </div>
+</div>
+
+<!-- ── Results ──────────────────────────────────────────── -->
+<div id="view-results" class="view">
+  <div class="results-hero">
+    <div class="icon" id="resultsIcon">✓</div>
+    <div class="score" id="totalScore">—</div>
+    <div class="label">overall score</div>
+  </div>
+  <div id="resultRows"></div>
+  <div style="height:24px"></div>
+  <button class="btn btn-primary" onclick="loadDashboard()">Back to Dashboard</button>
+</div>
+
+<script>
+const API = ''; // same origin — served by Flask at localhost:8000
+
+let student   = null;
+let questions = [];
+let sessionId = null;
+let currentQ  = 0;
+let answers   = [];
+
+// ── Views ──────────────────────────────────────────────────────────────────
+
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ── Session persistence ────────────────────────────────────────────────────
+
+// Restore student from sessionStorage so a page refresh doesn't force re-login
+(function restoreSession() {
+  const saved = sessionStorage.getItem('student');
+  if (saved) {
+    try {
+      student = JSON.parse(saved);
+      loadDashboard();
+    } catch {
+      sessionStorage.removeItem('student');
+    }
+  }
+})();
+
+// ── Login ──────────────────────────────────────────────────────────────────
+
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+async function login() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) return;
+
+  const studentId = name.toLowerCase().replace(/\s+/g, '_');
+  const errEl = document.getElementById('loginError');
+  const btn   = document.getElementById('loginBtn');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Connecting...';
+
+  try {
+    const res = await fetch(`${API}/api/students/${studentId}/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, grade_level: 10 }),
+    });
+    if (!res.ok) throw new Error('Server error');
+    student = await res.json();
+    sessionStorage.setItem('student', JSON.stringify(student));
+    await loadDashboard();
+  } catch {
+    errEl.textContent = 'Could not connect. Is the server running on port 8000?';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Get Started';
+  }
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+  showView('dashboard');
+  document.getElementById('welcomeText').textContent = `Hi, ${student.name} 👋`;
+  document.getElementById('topicGrid').innerHTML =
+    '<p class="muted" style="grid-column:1/-1;padding:20px 0">Loading scores...</p>';
+
+  const res  = await fetch(`${API}/api/students/${student.id}/topics`);
+  const data = await res.json();
+  renderTopics(data.topics);
+}
+
+function renderTopics(topics) {
+  const grid = document.getElementById('topicGrid');
+  const entries = Object.entries(topics);
+
+  if (!entries.length) {
+    grid.innerHTML = '<p class="muted" style="grid-column:1/-1">No topics yet — take a quiz to get started.</p>';
+    return;
+  }
+
+  grid.innerHTML = entries.map(([topic, info]) => {
+    const score = info.avg_score;
+    const pct   = score == null ? null : Math.round(score * 100);
+    const cls   = score == null ? 'medium' : score >= 0.7 ? 'good' : score >= 0.5 ? 'medium' : 'poor';
+    const label = topic.replace(/_/g, ' ');
+    const sessions = info.sessions ?? 0;
+
+    return `
+      <div class="topic-card">
+        <div class="topic-label">${label}</div>
+        <div class="topic-pct ${cls}">${pct != null ? pct + '%' : '—'}</div>
+        <div class="score-bar">
+          <div class="score-fill ${cls}" style="width:${pct ?? 0}%"></div>
+        </div>
+        <div class="topic-sessions">${sessions} session${sessions !== 1 ? 's' : ''}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Quiz ───────────────────────────────────────────────────────────────────
+
+async function startQuiz() {
+  showView('quiz');
+  document.getElementById('questionCard').innerHTML =
+    '<p class="muted">Building your quiz...</p>';
+  document.getElementById('answerArea').innerHTML = '';
+  document.getElementById('nextWrap').style.display = 'none';
+
+  const res  = await fetch(`${API}/api/quiz/build`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ student_id: student.id, n: 8, difficulty: 'adaptive' }),
+  });
+  const data = await res.json();
+
+  if (data.error || !data.questions?.length) {
+    document.getElementById('questionCard').innerHTML =
+      `<p style="color:var(--red)">${data.error ?? 'No questions available.'}</p>`;
+    return;
+  }
+
+  questions = data.questions;
+  sessionId = data.session_id;
+  currentQ  = 0;
+  answers   = [];
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q     = questions[currentQ];
+  const total = questions.length;
+  const pct   = Math.round((currentQ / total) * 100);
+
+  document.getElementById('quizProgress').textContent =
+    `Question ${currentQ + 1} of ${total}`;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('nextWrap').style.display = 'none';
+
+  document.getElementById('questionCard').innerHTML = `
+    <div class="q-topic">${q.topic.replace(/_/g, ' ')} · ${q.difficulty}</div>
+    <div class="q-text">${q.question}</div>
+  `;
+
+  const area = document.getElementById('answerArea');
+
+  if (q.format === 'multiple_choice' && q.distractors?.length) {
+    const opts = shuffle([...q.distractors]);
+    area.innerHTML = `<div class="options">${opts.map((o, i) =>
+      `<button class="opt" data-i="${i}">${o}</button>`
+    ).join('')}</div>`;
+
+    area.querySelectorAll('.opt').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const chosen = opts[parseInt(btn.dataset.i)];
+        handleMC(btn, chosen, q.answer, opts);
+      });
+    });
+  } else {
+    area.innerHTML = `
+      <div class="numeric-row">
+        <input type="text" id="numericAns" placeholder="Your answer..." autocomplete="off">
+        <button class="btn btn-primary" id="numericBtn" onclick="handleNumeric()">Submit</button>
+      </div>
+      <div class="feedback" id="feedback"></div>`;
+    document.getElementById('numericAns').addEventListener('keydown', e => {
+      if (e.key === 'Enter') handleNumeric();
+    });
+    document.getElementById('numericAns').focus();
+  }
+}
+
+function handleMC(btn, chosen, correct, opts) {
+  document.querySelectorAll('.opt').forEach(b => b.disabled = true);
+  const isCorrect = normalize(chosen) === normalize(correct);
+  btn.classList.add(isCorrect ? 'correct' : 'wrong');
+  if (!isCorrect) {
+    document.querySelectorAll('.opt').forEach(b => {
+      if (normalize(b.textContent) === normalize(correct)) b.classList.add('correct');
+    });
+  }
+  recordAnswer(questions[currentQ].id, chosen);
+}
+
+function handleNumeric() {
+  const input = document.getElementById('numericAns');
+  const btn   = document.getElementById('numericBtn');
+  const chosen = input.value.trim();
+  if (!chosen) return;
+
+  input.disabled = true;
+  btn.disabled   = true;
+
+  const correct    = questions[currentQ].answer;
+  const isCorrect  = normalize(chosen) === normalize(correct);
+  const feedbackEl = document.getElementById('feedback');
+  feedbackEl.className = 'feedback ' + (isCorrect ? 'ok' : 'err');
+  feedbackEl.textContent = isCorrect ? '✓ Correct!' : `✗ Answer: ${correct}`;
+
+  recordAnswer(questions[currentQ].id, chosen);
+}
+
+function recordAnswer(questionId, answerGiven) {
+  answers.push({ question_id: questionId, answer_given: answerGiven });
+  document.getElementById('nextWrap').style.display = 'block';
+}
+
+function nextQuestion() {
+  currentQ++;
+  if (currentQ >= questions.length) {
+    submitQuiz();
+  } else {
+    renderQuestion();
+  }
+}
+
+function exitQuiz() {
+  if (confirm('Exit quiz? Your progress will be lost.')) loadDashboard();
+}
+
+// ── Submit ─────────────────────────────────────────────────────────────────
+
+async function submitQuiz() {
+  showView('results');
+  document.getElementById('resultsIcon').textContent = '⏳';
+  document.getElementById('totalScore').textContent = '…';
+  document.getElementById('resultRows').innerHTML =
+    '<p class="muted" style="text-align:center;padding:20px 0">Scoring your quiz...</p>';
+
+  try {
+    const res  = await fetch(`${API}/api/quiz/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: student.id, session_id: sessionId, answers }),
+    });
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    const pct     = Math.round(data.total_score * 100);
+    const scoreEl = document.getElementById('totalScore');
+    scoreEl.textContent = pct + '%';
+    scoreEl.className   = 'score ' + (pct >= 70 ? 'good' : pct >= 50 ? '' : 'poor');
+
+    document.getElementById('resultsIcon').textContent = pct >= 70 ? '🎉' : pct >= 50 ? '📈' : '💪';
+
+    document.getElementById('resultRows').innerHTML =
+      Object.entries(data.by_topic).map(([topic, info]) => {
+        const cls = info.score >= 0.7 ? 'good' : info.score >= 0.5 ? '' : 'poor';
+        return `
+          <div class="result-row">
+            <div>
+              <div class="result-name">${topic.replace(/_/g, ' ')}</div>
+              <div class="result-sub">${info.correct} / ${info.total} correct</div>
+            </div>
+            <div class="result-score ${cls}">${Math.round(info.score * 100)}%</div>
+          </div>`;
+      }).join('');
+
+  } catch (e) {
+    document.getElementById('resultsIcon').textContent = '⚠️';
+    document.getElementById('totalScore').textContent = 'Error';
+    document.getElementById('resultRows').innerHTML =
+      `<p class="error" style="margin-top:12px">${e.message || 'Could not save results. Check the server.'}</p>`;
+  }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function normalize(s) {
+  return String(s).toLowerCase().trim();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+</script>
+</body>
+</html>

@@ -1,20 +1,25 @@
 """
 seed_anchors.py
-Import anchor questions from data/anchors.csv into the questions database.
-Usage: python question_bank/scripts/seed_anchors.py
+Import anchor questions from a CSV file into the questions database.
+Usage:
+    python question_bank/scripts/seed_anchors.py                          # default anchors.csv
+    python question_bank/scripts/seed_anchors.py data/anchors_hs_geometry.csv
 """
+
+from __future__ import annotations
 
 import sqlite3
 import csv
 import os
+import sys
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "questions.db")
-CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "anchors.csv")
+DB_PATH      = os.path.join(os.path.dirname(__file__), "..", "questions.db")
+DEFAULT_CSV  = os.path.join(os.path.dirname(__file__), "..", "data", "anchors.csv")
 
 
-def seed_anchors() -> None:
-    db_path = os.path.abspath(DB_PATH)
-    csv_path = os.path.abspath(CSV_PATH)
+def seed_anchors(csv_path: str | None = None) -> None:
+    db_path  = os.path.abspath(DB_PATH)
+    csv_path = os.path.abspath(csv_path or DEFAULT_CSV)
 
     if not os.path.exists(db_path):
         print("✗ Database not found. Run setup_db.py first.")
@@ -78,4 +83,4 @@ def seed_anchors() -> None:
 
 
 if __name__ == "__main__":
-    seed_anchors()
+    seed_anchors(sys.argv[1] if len(sys.argv) > 1 else None)
