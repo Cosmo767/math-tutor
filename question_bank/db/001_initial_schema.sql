@@ -2,7 +2,7 @@
 -- Version: 001
 -- Run via: python question_bank/scripts/setup_db.py
 
--- ── Question Bank ────────────────────────────────────────────────────────────
+-- ── Question Bank ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS questions (
     id                TEXT PRIMARY KEY,
@@ -15,13 +15,12 @@ CREATE TABLE IF NOT EXISTS questions (
     format            TEXT NOT NULL CHECK (format IN ('multiple_choice', 'numeric_input')),
     question          TEXT NOT NULL,
     answer            TEXT NOT NULL,
-    common_errors     TEXT NOT NULL DEFAULT '[]',   -- JSON array of likely wrong answers
-    distractors       TEXT NOT NULL DEFAULT '[]',   -- JSON array for multiple choice options
-    is_anchor         INTEGER NOT NULL DEFAULT 0,   -- 1 = manually written, used as generation seed
+    common_errors     TEXT NOT NULL DEFAULT '[]',
+    distractors       TEXT NOT NULL DEFAULT '[]',
+    is_anchor         INTEGER NOT NULL DEFAULT 0,
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Logs QC results for generated questions (approved / rejected / revised)
 CREATE TABLE IF NOT EXISTS qc_log (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     question_id       TEXT,
@@ -30,60 +29,76 @@ CREATE TABLE IF NOT EXISTS qc_log (
     checked_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Students ─────────────────────────────────────────────────────────────────
+-- ── Students ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS students (
     id                          TEXT PRIMARY KEY,
     name                        TEXT,
     grade_level                 INTEGER,
-    -- preference: whether to show Claude's recommendation alongside the model's
-    -- stored here so it persists across sessions and the backend can skip
-    -- the API call entirely when turned off
     show_claude_recommendation  INTEGER NOT NULL DEFAULT 1,
     created_at                  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Quiz Results ──────────────────────────────────────────────────────────────
+-- ── Quiz Sessions ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS student_results (
-    id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    student_id        TEXT NOT NULL,
-    -- session_id groups all questions from one quiz sitting together.
-    -- this lets us compute per-session topic scores, not just per-question.
-    session_id        TEXT NOT NULL,
-    question_id       TEXT NOT NULL,
-    topic             TEXT NOT NULL,   -- denormalized from questions for faster queries
-    answer_given      TEXT,
-    is_correct        INTEGER NOT NULL DEFAULT 0,
-    time_spent_seconds INTEGER,
-    -- distinguishes real student data from Claude-simulated training data.
-    -- the ML model uses both but we track the split for retraining decisions.
-    is_simulated      INTEGER NOT NULL DEFAULT 0,
-    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id          TEXT NOT NULL,
+    session_id          TEXT NOT NULL,
+    question_id         TEXT NOT NULL,
+    topic               TEXT NOT NULL,
+    subtopic            TEXT NOT NULL,
+    difficulty          TEXT NOT NULL,
+    answer_given        TEXT,
+    is_correct          INTEGER NOT NULL DEFAULT 0,
+    time_spent_seconds  INTEGER,
+    is_simulated        INTEGER NOT NULL DEFAULT 0,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- ── Topic History ─────────────────────────────────────────────────────────────
+-- ── Performance Tracking ──────────────────────────────────────────────────────
 
--- Running summary of each student's performance per topic across all sessions.
--- Updated after every quiz session. This is what drives recommendations
--- and the "new test focused on weak points" feature.
-CREATE TABLE IF NOT EXISTS student_topic_history (
+-- Tracks performance at three granularity levels using a surrogate PK.
+-- subtopic and difficulty are nullable — NULL means "rolled up across all".
+--
+-- Three row types per topic after a session:
+--   subtopic=NULL,  difficulty=NULL  → overall topic score
+--   subtopic=set,   difficulty=NULL  → subtopic score across all difficulties
+--   subtopic=set,   difficulty=set   → most granular view
+--
+-- The UNIQUE index below enforces one row per (student, topic, subtopic, difficulty)
+-- combination, using sentinel strings for NULLs so COALESCE works in the index.
+
+CREATE TABLE IF NOT EXISTS student_performance (
+    perf_id       INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id    TEXT NOT NULL,
     topic         TEXT NOT NULL,
-    sessions      INTEGER NOT NULL DEFAULT 0,    -- total quiz sessions on this topic
-    avg_score     REAL NOT NULL DEFAULT 0.0,     -- rolling average score (0.0 - 1.0)
-    last_score    REAL,                          -- most recent session score
-    -- trend > 0: improving, trend < 0: declining, trend = 0: stable
-    -- calculated as (last_score - avg_score) as a simple indicator
+    subtopic      TEXT,
+    difficulty    TEXT,
+    sessions      INTEGER NOT NULL DEFAULT 0,
+    avg_score     REAL NOT NULL DEFAULT 0.0,
+    last_score    REAL,
     trend         REAL NOT NULL DEFAULT 0.0,
-    updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (student_id, topic)
+    updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 
--- Speed up the most common queries
-CREATE INDEX IF NOT EXISTS idx_results_student    ON student_results (student_id);
-CREATE INDEX IF NOT EXISTS idx_results_session    ON student_results (session_id);
-CREATE INDEX IF NOT EXISTS idx_results_topic      ON student_results (topic);
-CREATE INDEX IF NOT EXISTS idx_history_student    ON student_topic_history (student_id);
+CREATE INDEX IF NOT EXISTS idx_results_student     ON student_results (student_id);
+CREATE INDEX IF NOT EXISTS idx_results_session     ON student_results (session_id);
+CREATE INDEX IF NOT EXISTS idx_results_topic       ON student_results (topic);
+CREATE INDEX IF NOT EXISTS idx_results_subtopic    ON student_results (subtopic);
+CREATE INDEX IF NOT EXISTS idx_perf_student        ON student_performance (student_id);
+CREATE INDEX IF NOT EXISTS idx_perf_topic          ON student_performance (student_id, topic);
+CREATE INDEX IF NOT EXISTS idx_perf_subtopic       ON student_performance (student_id, topic, subtopic);
+
+-- Enforces uniqueness across the four key columns.
+-- COALESCE replaces NULL with a sentinel string '__all__' so the index
+-- treats (circles, NULL, NULL) as distinct from (circles, arc_length, NULL).
+-- The backend uses INSERT OR REPLACE with the same COALESCE logic when upserting.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_perf_unique ON student_performance (
+    student_id,
+    topic,
+    COALESCE(subtopic,   '__all__'),
+    COALESCE(difficulty, '__all__')
+);

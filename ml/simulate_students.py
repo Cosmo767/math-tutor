@@ -13,6 +13,8 @@ Why simulate instead of just using rules?
 Output: ml/data/simulated_students.csv
 """
 
+from __future__ import annotations
+
 import anthropic
 import json
 import csv

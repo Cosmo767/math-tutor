@@ -19,6 +19,8 @@ Why concurrent.futures instead of asyncio?
   If we move to FastAPI later, we'd replace this with async/await.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import json

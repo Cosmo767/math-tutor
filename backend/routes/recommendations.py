@@ -17,6 +17,8 @@ Why is the streaming endpoint GET not POST?
   a "session token" first, then GET the stream using that token.
 """
 
+from __future__ import annotations
+
 import sqlite3
 import os
 import sys

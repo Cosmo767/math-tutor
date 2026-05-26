@@ -22,6 +22,8 @@ Why not a neural network?
   simpler models stop working.
 """
 
+from __future__ import annotations
+
 import pandas as pd
 import numpy as np
 import joblib
