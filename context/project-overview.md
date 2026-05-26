@@ -63,31 +63,35 @@ California math standards (CA CCSS) are the reference framework for all content.
 
 ## 4. Project Phases
 
-### Phase 1 — Question Bank ← YOU ARE HERE
+### Phase 1 — Question Bank ✅ complete (anchor set)
 - ✅ Design and finalize question schema
-- ✅ `generate_anchors.py` — generates HS geometry anchors via Claude API (12 domains, 9 questions each)
-- ✅ `seed_anchors.py` — imports CSV anchors into SQLite
-- ⬜ Build automated QC pipeline (`qc_questions.py`)
-- ⬜ Build bulk question generation pipeline (`generate_questions.py`)
+- ✅ `generate_anchors.py` — 108 HS geometry anchor questions across 12 domains
+- ✅ `seed_anchors.py` — imports any CSV into SQLite (accepts optional path arg)
+- ✅ 118 questions total in DB (108 HS + 10 middle school)
+- ⬜ Automated QC pipeline (`qc_questions.py`)
+- ⬜ Bulk question generation beyond anchor set (`generate_questions.py`)
 
-### Phase 2 — Quiz Website (Frontend)
-- Serve questions to students
-- Handle multiple choice and numeric input formats
-- Display score and basic feedback by topic
-- Stack TBD — see [Section 10](#10-frontend-decision--pending)
+### Phase 2 — Quiz Website (Frontend) ✅ v1 live
+- ✅ `frontend/index.html` — SPA served by Flask at `http://localhost:8000/`
+- ✅ Login, topic dashboard with score bars, adaptive quiz, results screen
+- ✅ Session persisted in `sessionStorage` (survives page refresh)
+- ✅ `seed_demo_student.py` — seeds fake scores for UI testing
+- ⬜ Teacher/instructor view
+- ⬜ Auth (login with real accounts)
 
-### Phase 3 — Backend API ✅ scaffolded
-- ✅ Flask app with blueprint routing (`backend/app.py`)
+### Phase 3 — Backend API ✅ complete
+- ✅ Flask app with blueprint routing, served on port 8000
+- ✅ `/api/quiz/build` — adaptive quiz builder (weakness-focused or custom)
+- ✅ `/api/quiz/submit` — scores answers, updates `student_performance`
+- ✅ `/api/students/:id/topics` — nested performance map (topic/subtopic/difficulty)
+- ✅ `/api/students/:id/create` — upsert student record
 - ✅ `/api/recommend` endpoints (non-streaming + SSE streaming)
-- ✅ Student Claude preference toggle (stored in DB)
-- ⬜ Question serving routes (`GET /api/questions`)
-- ⬜ Result submission routes (`POST /api/results`)
 
-### Phase 4 — ML Model ✅ scaffolded
-- ✅ `simulate_students.py` — generates synthetic training data via Claude
-- ✅ `train_model.py` — trains SGDClassifier with `partial_fit()` support
-- ✅ `recommender.py` — dual recommender (model + Claude streaming in parallel)
-- ⬜ Real student data accumulation (triggers at 10 real sessions)
+### Phase 4 — ML Model ✅ trained and live
+- ✅ 100 simulated students generated via Claude API (10 archetypes × 10)
+- ✅ SGDClassifier trained — 98% CV accuracy across 10 topics
+- ✅ Model active — switches automatically after 10 real student sessions
+- ✅ `partial_fit()` updates model incrementally after each real session
 
 ### Phase 5 — Adaptive Quiz Engine
 - Use difficulty tags already on questions to route adaptively

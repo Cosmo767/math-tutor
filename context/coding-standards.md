@@ -20,7 +20,9 @@ math-tutor/
 │   ├── scripts/
 │   │   ├── setup_db.py              # initialize database
 │   │   ├── generate_anchors.py      # generate HS geometry anchors via Claude API
-│   │   ├── seed_anchors.py          # import anchor CSV into SQLite
+│   │   ├── seed_anchors.py          # import any anchor CSV into SQLite (accepts path arg)
+│   │   ├── seed_demo_student.py     # seed fake student scores for UI testing
+│   │   ├── quick_add.py             # conversational question entry via Claude API
 │   │   ├── generate_questions.py    # ⬜ bulk question generation (not built yet)
 │   │   └── qc_questions.py          # ⬜ automated QC pipeline (not built yet)
 │   ├── data/
@@ -28,12 +30,15 @@ math-tutor/
 │   │   └── anchors_hs_geometry.csv  # HS anchors (output of generate_anchors.py)
 │   └── questions.db                 # SQLite database (gitignored)
 ├── backend/
-│   ├── app.py
+│   ├── app.py                       # Flask entry point, serves frontend at /
 │   └── routes/
 │       ├── __init__.py
-│       └── recommendations.py
+│       ├── recommendations.py       # /api/recommend, /api/status, /api/update
+│       ├── quiz.py                  # /api/quiz/build, /api/quiz/submit
+│       └── students.py              # /api/students/:id/create, /api/students/:id/topics
 ├── frontend/
-│   └── test_stream.html        # SSE test page (dev only)
+│   ├── index.html              # main SPA (login, dashboard, quiz, results)
+│   └── test_stream.html        # SSE dev test page
 ├── ml/
 │   ├── simulate_students.py
 │   ├── train_model.py
